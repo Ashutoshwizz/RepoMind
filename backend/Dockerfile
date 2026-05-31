@@ -17,10 +17,10 @@ COPY scripts/ ./scripts/
 # Create temp directory for repo clones
 RUN mkdir -p /tmp/repomind-repos
 
-EXPOSE 4000
+EXPOSE 7860
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:4000/api/health || exit 1
+  CMD wget -qO- http://localhost:7860/api/health || exit 1
 
 CMD ["node", "src/index.js"]

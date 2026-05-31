@@ -11,7 +11,7 @@ import routes from './routes/index.js';
 import { notFound, globalError } from './middleware/errorHandler.js';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT ||  7860;
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 
@@ -54,7 +54,7 @@ app.use(globalError);
 async function start() {
   await connectDB();
   app.listen(PORT, () => {
-    console.log(`\n🚀 RepoMind AI Backend running on port ${PORT}\n`);
+    console.log(`\n RepoMind AI Backend running on port ${PORT}\n`);
   });
 }
 
