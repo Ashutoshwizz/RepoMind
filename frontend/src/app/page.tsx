@@ -62,12 +62,6 @@ export default function HomePage() {
       {/* Background grid */}
       <div className="fixed inset-0 bg-grid-pattern opacity-40 pointer-events-none" />
 
-      {/* Background glow orbs */}
-      <div className="fixed top-0 left-1/4 w-96 h-96 rounded-full opacity-10 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #0ea5e9, transparent)', filter: 'blur(80px)' }} />
-      <div className="fixed bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-8 pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #22d3a5, transparent)', filter: 'blur(80px)' }} />
-
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-20">
 
         {/* Header */}
