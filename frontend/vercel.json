@@ -3,12 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "env": {
-    "NEXT_PUBLIC_API_URL": {
-      "description": "Backend API URL (Railway deployment URL)",
-      "required": true
-    }
-  },
   "headers": [
     {
       "source": "/(.*)",
