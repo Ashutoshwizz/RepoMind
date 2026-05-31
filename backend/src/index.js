@@ -53,9 +53,9 @@ app.use(globalError);
 
 async function start() {
   await connectDB();
-  app.listen(PORT, () => {
-    console.log(`\n RepoMind AI Backend running on port ${PORT}\n`);
-  });
+  app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n RepoMind AI Backend running on port ${PORT}\n`);
+});
 }
 
 start().catch(err => { console.error('Fatal:', err); process.exit(1); });
