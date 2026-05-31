@@ -2,7 +2,7 @@
 FROM node:20-slim
 
 # Install git (required for simple-git cloning)
-RUN apt-get update && apt-get install -y git curl wget
+RUN apt-get update && apt-get install -y git curl wget zstd
 
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
