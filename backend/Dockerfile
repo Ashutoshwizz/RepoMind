@@ -2,7 +2,10 @@
 FROM node:20-slim
 
 # Install git (required for simple-git cloning)
-RUN apt-get update && apt-get install -y git
+RUN apt-get update && apt-get install -y git curl wget
+
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 WORKDIR /app
 
@@ -23,4 +26,4 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:7860/api/health || exit 1
 
-CMD ["node", "src/index.js"]
+CMD bash -c "ollama serve & sleep 10 && ollama pull qwen2.5-coder:3b && node src/index.js"

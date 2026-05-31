@@ -11,6 +11,7 @@ import routes from './routes/index.js';
 import { notFound, globalError } from './middleware/errorHandler.js';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT ||  7860;
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
