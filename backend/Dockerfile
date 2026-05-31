@@ -1,5 +1,5 @@
 # Dockerfile — RepoMind AI Backend
-FROM node:20-alpine
+FROM node:20-slim
 
 # Install git (required for simple-git cloning)
 RUN apk add --no-cache git
