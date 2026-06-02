@@ -7,6 +7,8 @@
 
 import Groq from 'groq-sdk';
 import ollama from 'ollama';
+import fs from 'fs/promises';
+import path from 'path';
 import { MCP_TOOLS, executeTool } from '../mcp/mcpServer.js';
 
 // ─── Client ───────────────────────────────────────────────────────────────────
@@ -110,18 +112,14 @@ async function runWithTools(messages, tools, context, opts = {}) {
   while (iteration < maxIterations) {
     const response =
 await ollama.chat({
-
   model,
-
   messages: history,
-
+  tools,   // <- add this
   options:{
     temperature,
     num_predict:900
   },
-
   stream:false
-
 });
 
    const message = response.message;
@@ -209,6 +207,109 @@ arguments:'{}'
   // Max iterations hit — extract last assistant message
   const last = [...history].reverse().find(m => m.role === 'assistant');
   return { content: last?.content || '', history, totalTokensUsed };
+}
+async function runWithGroq(messages, tools, context, opts = {}) {
+
+const {
+  maxIterations = 4,
+  temperature = 0.1,
+  maxTokens = 1500
+} = opts;
+
+let history=[...messages];
+let iteration=0;
+
+while(iteration<maxIterations){
+
+const response =
+await groq.chat.completions.create({
+
+model:'llama-3.3-70b-versatile',
+
+messages:history,
+
+temperature,
+
+max_tokens:maxTokens,
+
+tools:
+tools.length
+? tools
+: undefined,
+
+tool_choice:
+tools.length
+? 'auto'
+: undefined
+
+});
+
+const message =
+response.choices[0].message;
+
+console.log(
+'GROQ RAW:',
+JSON.stringify(message,null,2)
+);
+
+history.push(message);
+
+const toolCalls =
+message.tool_calls ?? [];
+
+if(toolCalls.length===0){
+
+return {
+content:
+message.content || '',
+history
+};
+
+}
+
+for(const toolCall of toolCalls){
+
+let args={};
+
+try{
+args=
+JSON.parse(
+toolCall.function.arguments || '{}'
+);
+}catch{}
+
+const result =
+await executeTool(
+toolCall.function.name,
+args,
+context
+);
+
+history.push({
+
+role:'tool',
+
+tool_call_id:
+toolCall.id,
+name: toolCall.function.name,
+
+content:
+JSON.stringify(result)
+.slice(0,2000)
+
+});
+
+}
+
+iteration++;
+
+}
+
+return {
+content:'',
+history
+};
+
 }
 
 // ─── 1. REPO SUMMARY ──────────────────────────────────────────────────────────
@@ -322,7 +423,7 @@ setupGuide:
   try {
     // Summary doesn't need tool calls — we injected context directly
     // This saves 2-3 full LLM round-trips vs the original
-    const { content } = await runWithTools(
+    const { content } = await  runWithGroq(
       messages,
       [],           // No tools needed
       context,
@@ -376,15 +477,50 @@ function parseSummary(content, fallbackTechStack) {
  *  - System prompt enforces "never invent filenames" contract
  */
 export async function chatWithRepo(repositoryId, clonePath, question, chatHistory = []) {
-  const SYSTEM = `You are RepoMind AI, a code assistant with access to a real codebase via tools.
+ const SYSTEM = `
+You are RepoMind AI, a conversational code assistant with access to a real codebase via tools.
 
-CONTRACT:
-- Call search_code FIRST. Always. No exceptions.
-- Never reference a file you haven't retrieved via a tool.
-- Cite every file as: \`path/to/file.js:LINE\`
-- If search returns no results, say so explicitly.
-- Answer format: direct answer → cited files → code snippet (if <20 lines) → improvement note (optional).
-- Max response: 400 words.`;
+RULES:
+
+1. For repository questions:
+   call search_code FIRST.
+
+2. For greetings, casual messages, or general requests:
+   DO NOT use tools immediately.
+
+Examples:
+- hi
+- hello
+- thanks
+- who are you
+- help
+- codebase overview
+- explain this repo
+
+These should receive natural conversational responses.
+
+3. Never reference files you haven't retrieved via tools.
+
+4. Cite files as:
+path/to/file.js:LINE
+
+5. If repository search returns no results:
+DO NOT only say "no results found".
+
+Instead:
+- explain what was searched
+- infer from available context when possible
+- ask a helpful followup question.
+
+6. Answer format:
+
+direct answer
+→ cited files
+→ short snippet (<20 lines if useful)
+→ optional improvement note
+
+Max response: 400 words.
+`;
 
   // Trim history aggressively: last 6 messages = ~3 turns of context
   const trimmedHistory = chatHistory.slice(-6);
@@ -399,7 +535,7 @@ CONTRACT:
   ];
 
   const context               = { repositoryId, clonePath };
-  const { content, history }  = await runWithTools(
+  const { content, history }  = await runWithGroq(
     messages,
     CHAT_TOOLS,
     context,
@@ -494,17 +630,12 @@ Return the JSON array now.`;
   ];
 
   try {
-    const { content } = await runWithTools(
-      messages,
-      BUG_TOOLS,
-      context,
-      {
-        model:         MODELS.analysis,  // 70b for better code reasoning
-        maxIterations: 5,
-        maxTokens:     3000,
-        temperature:   0.1
-      }
-    );
+ const { content } = await runWithGroq(
+  [{ role: 'system', content: SYSTEM }, { role: 'user', content: USER }],
+  [],  // no tools needed
+  { repositoryId, clonePath },
+  { maxTokens: 2000 }
+);
 
     return hardenBugReport(content);
   } catch (err) {
@@ -880,12 +1011,12 @@ Return JSON only.
   ];
 
   try {
-    const { content } = await runWithTools(
-      messages,
-      ANALYSIS_TOOLS,
-      context,
-      { model: MODELS.analysis, maxIterations: 3, maxTokens: 2000, temperature: 0.1 }
-    );
+    const { content } = await runWithGroq(
+  [{ role: 'system', content: SYSTEM }, { role: 'user', content: USER }],
+  [],
+  { repositoryId, clonePath },
+  { maxTokens: 1200 }
+);
 
    console.log(
 '\nRAW EFFICIENCY OUTPUT:\n',
@@ -962,108 +1093,69 @@ export async function generateReadme(
   repoMeta
 ){
 
-const context = {
-  repositoryId,
-  clonePath
-};
-const SYSTEM = `
+try{
+
+const readmePath =
+path.join(
+clonePath,
+'README.md'
+);
+
+let existingReadme='';
+
+try{
+
+existingReadme =
+await fs.readFile(
+readmePath,
+'utf8'
+);
+
+}catch{}
+
+const messages=[
+
+{
+role:'system',
+
+content:`
 You are a senior technical writer.
 
-Goal:
-Generate a cleaner, simpler, production-quality README.
+Your task is NOT to copy the README.
 
-Use ONLY repository evidence.
+Rewrite it into a cleaner,
+more readable,
+modern GitHub README.
 
-Priorities:
+Improve:
 
-1. Prefer existing README if present.
-2. Simplify wording.
-3. Improve organization.
-4. Remove repetition / fluff.
-5. Preserve useful technical details.
+- formatting
+- markdown structure
+- spacing
+- readability
+- concise wording
+
+Keep:
+
+- real features
+- real links
+- real project information
+
+Remove:
+
+- badge clutter
+- repetition
+- noisy formatting
+- excessive marketing wording
 
 Never invent:
-- routes
-- env vars
-- scripts
-- ports
-- dependencies
-- databases
+
 - features
-
-TOOL RULES:
-
-1. ALWAYS call list_files FIRST.
-2. Use ONLY filenames returned by list_files.
-3. read_file MUST use exact discovered paths.
-4. Never assume file locations.
-5. Stop tool usage once enough context exists.
-
-Tool arguments MUST be valid JSON.
-
-VALID:
-read_file({"filePath":"README.md"})
-
-VALID:
-read_file({"filePath":"package.json"})
-
-INVALID:
-<function=read_file>filePath=README.md</function>
-
-INVALID:
-assumed filenames.
-`;
-
-const USER = `
-Repository:
-${repoMeta.name || 'Unknown'}
-
-Stack Hint:
-${repoMeta.techStack?.join(', ') || 'Unknown'}
-
-WORKFLOW
-
-STEP 1
-
-Call list_files EXACTLY ONCE.
-
-STEP 2
-
-Inspect ONLY needed files.
-
-If list_files contains README.md:
-
-read README FIRST using exact path.
-
-Then optionally inspect minimal supporting files:
-
-- package.json
-- server.js
-- app.js
-- index.js
-- .env.example
-
-ONLY if needed.
-
-If README.md does NOT exist:
-
-Build README from repository structure.
-
-Never repeatedly inspect files.
-
-STEP 3
-
-Generate improved README.
-
-Requirements:
-
-- beginner friendly
-- concise
-- professional markdown
-- clearer explanations
-- preserve technical accuracy
-- use actual scripts if discovered
-- omit missing sections
+- APIs
+- env vars
+- setup steps
+- scripts
+- technologies
 
 Preferred structure:
 
@@ -1075,51 +1167,59 @@ Short description
 
 ## Tech Stack
 
-## Installation
+## Getting Started
 
 ## Usage
 
 ## Project Structure
+(if relevant)
 
-## API / Architecture
-(only if detectable)
+## Contributing
+(if relevant)
 
-## Environment Variables
-(only if discovered)
-`;
+## License
+(if present)
 
-const messages = [
-{
-role:'system',
-content:SYSTEM
+Output ONLY polished markdown.
+`
 },
+
 {
 role:'user',
-content:USER
+
+content:`
+Repository:
+${repoMeta.name}
+
+Rewrite this README into a cleaner,
+simpler,
+more readable version.
+
+Current README:
+
+${existingReadme.slice(0,5000)}
+`
 }
+
 ];
 
-try{
+const response =
+await groq.chat.completions.create({
 
-const { content } =
-await runWithTools(
+model:'llama-3.1-8b-instant',
+
 messages,
-DOC_TOOLS,
-context,
-{
-  model: MODELS.fast,
-  maxIterations: 2,
-  maxTokens: 1200,
-  temperature: 0.1
-}
-);
 
-console.log(
-'RAW README:\n',
-content
-);
+temperature:0.1,
 
-return content;
+max_tokens:800
+
+});
+
+return response
+  .choices[0]
+  .message
+  .content;
 
 }catch(err){
 
@@ -1129,17 +1229,17 @@ err.message
 );
 
 return `
-# ${repoMeta.name || 'Repository'}
+# ${repoMeta.name}
 
 README generation failed.
-
-Reason:
-${err.message}
 `;
 
 }
 
 }
+     
+
+    
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 /**

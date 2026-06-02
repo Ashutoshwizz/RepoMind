@@ -2,6 +2,8 @@
 
 > Paste any GitHub URL. Get instant codebase intelligence powered by OpenAI GPT-4o + MCP Tools + MongoDB Vector Search.
 
+🔗 **Live Demo:** [opensource-contributingmind.vercel.app](https://opensource-contributingmind.vercel.app)
+
 ---
 
 ## Features
@@ -25,7 +27,7 @@
 **AI** — OpenAI GPT-4o (via Responses API), `text-embedding-3-small`  
 **Tool Layer** — `@modelcontextprotocol/sdk` (MCP Tools)  
 **Git Parsing** — `simple-git`, regex-based AST metadata extraction  
-**Deployment** — Vercel (frontend), Railway (backend)
+**Deployment** — Vercel (frontend), Hugging Face Spaces (backend)
 
 ---
 
@@ -35,7 +37,7 @@
 User → Next.js (Vercel)
          │
          ▼
-    Express API (Railway)
+    Express API (Hugging Face Spaces)
          │
     ┌────┴─────────────────────────────┐
     │                                  │
@@ -123,7 +125,6 @@ repomind-ai/
     ├── scripts/
     │   └── setup-atlas-index.js # One-time Atlas Vector Search setup
     ├── Dockerfile
-    ├── railway.toml
     └── package.json
 ```
 
@@ -143,7 +144,7 @@ repomind-ai/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-org/repomind-ai.git
+git clone https://github.com/your-username/repomind-ai.git
 cd repomind-ai
 
 # Install backend deps
@@ -161,7 +162,6 @@ PORT=4000
 NODE_ENV=development
 MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/repomind?retryWrites=true&w=majority
 OPENAI_API_KEY=sk-...
-JWT_SECRET=any_random_secret_string
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX=100
 REPO_STORAGE_PATH=/tmp/repomind-repos
@@ -330,7 +330,7 @@ Get architecture map of the repository.
 ```json
 {
   "files": ["src/index.js", "src/routes/..."],
-  "tree": { "src": { "routes": {...}, "models": {...} } },
+  "tree": { "src": { "routes": {}, "models": {} } },
   "mermaidDiagram": "graph TD\n  Root --> src[src]\n...",
   "fileCount": 142
 }
@@ -357,16 +357,17 @@ The AI uses these tools (defined in `src/mcp/mcpServer.js`) instead of hallucina
 
 ## Deployment
 
-### Backend → Railway
+### Backend → Hugging Face Spaces
 
-1. Connect your GitHub repo to [Railway](https://railway.app)
-2. Set environment variables in Railway dashboard
-3. Railway auto-deploys using `railway.toml`
+1. Create a new Space on [Hugging Face](https://huggingface.co/spaces) with Docker SDK
+2. Push your `backend/` folder to the Space repository
+3. Set environment variables under Space Settings → Repository Secrets
+4. Space auto-deploys on push
 
 ### Frontend → Vercel
 
 1. Import your repo on [Vercel](https://vercel.com)
-2. Set `NEXT_PUBLIC_API_URL` to your Railway backend URL
+2. Set `NEXT_PUBLIC_API_URL` to your Hugging Face Space backend URL
 3. Deploy — Vercel auto-detects Next.js
 
 ---

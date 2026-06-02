@@ -362,6 +362,7 @@ export async function generateDocsHandler(req, res) {
       name: repo.name,
       techStack: repo.metadata?.techStack
     });
+  
 
     const report = await AnalysisReport.create({
       repositoryId,
