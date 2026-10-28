@@ -20,13 +20,41 @@ const SUGGESTED_QUESTIONS = [
   'Where is error handling implemented?',
 ];
 
-export default function ChatPanel({ repoId }: { repoId: string }) {
+export default function ChatPanel({ repoId, active = true }: { repoId: string; active?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+    const storageKey = `repomind-chat-${repoId}`;
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore saved chat (kept until the browser tab is closed)
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+      if (saved) {
+        setMessages(saved.messages || []);
+        setSessionId(saved.sessionId);
+      }
+    } catch {}
+    setHydrated(true);
+  }, [storageKey]);
+
+  // Save on every change
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ messages, sessionId }));
+    } catch {}
+  }, [messages, sessionId, hydrated, storageKey]);
+
+  // Jump to the latest message when you come back to the Chat tab
+  useEffect(() => {
+    if (active) bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [active]);
+  
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
