@@ -1,6 +1,6 @@
 'use client';
 // src/components/features/BugReport.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { repoApi, pollReport, Bug } from '@/lib/api';
 import { Bug as BugIcon, AlertTriangle, ChevronDown, ChevronUp, Loader2, Zap, Shield } from 'lucide-react';
@@ -10,12 +10,27 @@ export default function BugReport({ repoId }: { repoId: string }) {
   const [loading, setLoading] = useState(false);
   const [ran, setRan] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const storageKey = `repomind-bugs-${repoId}`;
+const [hydrated, setHydrated] = useState(false);
+
+useEffect(() => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
+    if (saved) { setBugs(saved.bugs || []); setRan(!!saved.ran); }
+  } catch {}
+  setHydrated(true);
+}, [storageKey]);
+
+useEffect(() => {
+  if (!hydrated) return;
+  try { sessionStorage.setItem(storageKey, JSON.stringify({ bugs, ran })); } catch {}
+}, [bugs, ran, hydrated, storageKey]);
 
   async function runDetection() {
     setLoading(true);
     try {
       const { data } = await repoApi.detectBugs(repoId);
-      const report = await pollReport(data.reportId);
+      const report = await pollReport(data.reportId, 400);
       setBugs(report.bugs || []);
       setRan(true);
       toast.success(`Found ${report.bugs?.length || 0} issues`);
@@ -160,7 +175,7 @@ function BugCard({ bug, index, isExpanded, onToggle }: {
         <div className="px-5 pb-5 space-y-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
           <div className="pt-4">
             <p className="text-xs font-mono mb-2" style={{ color: 'var(--text-muted)' }}>SUGGESTED FIX</p>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{bug.suggestedFix}</p>
+            <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{bug.suggestedFix}</p>
           </div>
           {bug.fixedExample && (
             <div>
