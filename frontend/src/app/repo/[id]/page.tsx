@@ -161,7 +161,9 @@ export default function RepoPage() {
               <div style={{ display: activeTab === 'chat' ? 'block' : 'none' }}>
   <ChatPanel repoId={repoId} active={activeTab === 'chat'} />
 </div>
-              {activeTab === 'bugs' && <BugReport repoId={repoId} />}
+              <div style={{ display: activeTab === 'bugs' ? 'block' : 'none' }}>
+  <BugReport repoId={repoId} />
+</div>
               {activeTab === 'efficiency' && <EfficiencyReport repoId={repoId} />}
               {activeTab === 'architecture' && <ArchitectureView repoId={repoId} />}
               {activeTab === 'docs' && <ReadmeViewer repoId={repoId} />}
