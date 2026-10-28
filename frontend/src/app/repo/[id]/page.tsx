@@ -158,7 +158,9 @@ export default function RepoPage() {
             {/* Tab Content */}
             <div className="max-w-7xl mx-auto px-6 py-8">
               {activeTab === 'overview' && <OverviewTab repo={repo} />}
-              {activeTab === 'chat' && <ChatPanel repoId={repoId} />}
+              <div style={{ display: activeTab === 'chat' ? 'block' : 'none' }}>
+  <ChatPanel repoId={repoId} active={activeTab === 'chat'} />
+</div>
               {activeTab === 'bugs' && <BugReport repoId={repoId} />}
               {activeTab === 'efficiency' && <EfficiencyReport repoId={repoId} />}
               {activeTab === 'architecture' && <ArchitectureView repoId={repoId} />}
