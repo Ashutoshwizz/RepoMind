@@ -20,15 +20,21 @@ const SUGGESTED_QUESTIONS = [
   'Where is error handling implemented?',
 ];
 
+// Typing "clear" (or /clear, clear chat, reset chat, ...) wipes the conversation
+const CLEAR_RE = /^\/?(clear|reset)(\s+(chat|conversation|history))?\s*[.!]?$/i;
+
 export default function ChatPanel({ repoId, active = true }: { repoId: string; active?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-    const storageKey = `repomind-chat-${repoId}`;
+  const storageKey = `repomind-chat-${repoId}`;
   const [hydrated, setHydrated] = useState(false);
+
+  const busy = loading || clearing;
 
   // Restore saved chat (kept until the browser tab is closed)
   useEffect(() => {
@@ -54,14 +60,45 @@ export default function ChatPanel({ repoId, active = true }: { repoId: string; a
   useEffect(() => {
     if (active) bottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [active]);
-  
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // "clear": wipe the screen, the saved copy and the server-side memory, then start fresh
+  async function clearChat() {
+    const hadChat = messages.length > 0;
+    const oldSession = sessionId;
+
+    // 1) screen + saved copy (the "save" effect above rewrites sessionStorage as empty)
+    setMessages([]);
+    setSessionId(undefined);   // the next question starts a brand-new session
+    setInput('');
+
+    // 2) tell the server to forget this conversation (instant, no AI call)
+    if (hadChat) {
+      setClearing(true);
+      try {
+        await repoApi.chat(repoId, 'clear', oldSession);
+      } catch {
+        /* ignore: the screen is already cleared */
+      } finally {
+        setClearing(false);
+      }
+    }
+
+    toast.success('Conversation cleared');
+    inputRef.current?.focus();
+  }
+
   async function sendMessage(question: string) {
-    if (!question.trim() || loading) return;
+    if (!question.trim() || busy) return;
+
+    // "clear" → start fresh
+    if (CLEAR_RE.test(question.trim())) {
+      await clearChat();
+      return;
+    }
 
     const userMsg: Message = { role: 'user', content: question };
     setMessages(prev => [...prev, userMsg]);
@@ -196,27 +233,27 @@ export default function ChatPanel({ repoId, active = true }: { repoId: string; a
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything about this codebase... (Enter to send)"
+            placeholder="Ask anything about this codebase... (Enter to send, type clear to start over)"
             rows={1}
             className="flex-1 glass-input px-4 py-3 text-sm resize-none"
             style={{ minHeight: '48px', maxHeight: '120px', color: 'var(--text-primary)' }}
-            disabled={loading}
+            disabled={busy}
           />
           <button
             onClick={() => sendMessage(input)}
-            disabled={loading || !input.trim()}
+            disabled={busy || !input.trim()}
             className="px-4 py-3 rounded-lg transition-all flex items-center gap-2 text-sm font-medium"
             style={{
-              background: loading || !input.trim() ? 'rgba(14,165,233,0.2)' : 'rgba(14,165,233,0.9)',
+              background: busy || !input.trim() ? 'rgba(14,165,233,0.2)' : 'rgba(14,165,233,0.9)',
               color: 'white',
-              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+              cursor: busy || !input.trim() ? 'not-allowed' : 'pointer',
               height: '48px'
             }}>
             <Send className="w-4 h-4" />
           </button>
         </div>
         <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-          Shift+Enter for newline · Answers grounded in actual code with file citations
+          Shift+Enter for newline · Type <span className="font-mono">clear</span> to start a fresh conversation · Answers grounded in actual code with file citations
         </p>
       </div>
     </div>
